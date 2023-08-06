@@ -370,6 +370,10 @@ int main()
     // frame count
     unsigned long frame_n = 0;
 
+    // energy tracking
+    double ke = 0;
+    double ge = 0;
+
     // while application is running
     while(1)
     {
@@ -391,18 +395,18 @@ int main()
         deltatime = ((double) std::chrono::duration_cast<std::chrono::milliseconds>(this_time - last_time).count()) / 1000.;
         last_time = std::chrono::high_resolution_clock::now();
 
+        ke = 0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed
+            + 0.5 * l2.mass * (
+                l1.length * l1.length * l1.angular_speed * l1.angular_speed
+                + l2.length * l2.length * l2.angular_speed * l2.angular_speed
+                + 2 * l1.length * l2.length * l1.angular_speed * l2.angular_speed * std::cos(l1.angle - l2.angle)
+            );
+        ge = l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle))
+            + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle));
+
         #ifdef DEBUG
         std::cout << "frame: " << frame_n;
-        std::cout << ", Total Energy: " <<
-        0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed // kinetic energy of mass 1 = 1/2*m*r^2*w^2
-        + 0.5 * l2.mass * (
-            l1.length * l1.length * l1.angular_speed * l1.angular_speed
-            + l2.length * l2.length * l2.angular_speed * l2.angular_speed
-            + 2 * l1.length * l2.length * l1.angular_speed * l2.angular_speed * std::cos(l1.angle - l2.angle)
-        ) // kinetic energy of mass 2
-        + l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle)) // GPE of mass 1
-        + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle)) // GPE of mass 2
-        << " Joules";
+        std::cout << ", Total Energy: " << ke + ge << " Joules";
         std::cout << ", deltatime: " << deltatime;
         std::cout << ", height 1: " << l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle));
         std::cout << ", height 2: " << l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle));
