@@ -1,8 +1,11 @@
 /**
- * source for double pendulum math
+ * double pendulum math
  * - https://web.mit.edu/jorloff/www/chaosTalk/double-pendulum/double-pendulum-en.html
  * 
- * source for runge-kutta implementaiton
+ * double pendulum energy
+ * - https://scienceworld.wolfram.com/physics/DoublePendulum.html
+ * 
+ * runge-kutta
  * - https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
 */
 
@@ -391,8 +394,12 @@ int main()
         #ifdef DEBUG
         std::cout << "frame: " << frame_n;
         std::cout << ", Total Energy: " <<
-            0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed // kinetic energy of mass 1 = 1/2*m*r^2*w^2
-        + 0.5 * l2.mass * l2.length * l2.length * l2.angular_speed * l2.angular_speed // kinetic energy of mass 2
+        0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed // kinetic energy of mass 1 = 1/2*m*r^2*w^2
+        + 0.5 * l2.mass * (
+            l1.length * l1.length * l1.angular_speed * l1.angular_speed
+            + l2.length * l2.length * l2.angular_speed * l2.angular_speed
+            + 2 * l1.length * l2.length * l1.angular_speed * l2.angular_speed * std::cos(l1.angle - l2.angle)
+        ) // kinetic energy of mass 2
         + l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle)) // GPE of mass 1
         + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle)) // GPE of mass 2
         << " Joules";
