@@ -18,15 +18,28 @@
 #include <functional>
 #include <array>
 
-const int SCREEN_WIDTH = 1080;
-const int SCREEN_HEIGHT = 720;
+// Simulation Constants
 #define FRAME_RATE 20
 #define GRAVITY 9.81
+#define M1 10
+#define M2 10
+#define L1 1
+#define L2 1
+#define THETA1 M_PI/2 
+#define THETA2 M_PI/2
 
-//The window we'll be rendering to
+// GUI Constants
+const int SCREEN_WIDTH = 2160;
+const int SCREEN_HEIGHT = 1440;
+#define XSCALE 500
+#define YSCALE 500
+#define XOFFSET SCREEN_WIDTH / 2
+#define YOFFSET SCREEN_HEIGHT * 1 / 5
+
+// window
 SDL_Window* gWindow = NULL;
 
-//The window renderer
+// renderer
 SDL_Renderer* gRenderer = NULL;
 
 class Color
@@ -124,21 +137,10 @@ class Line
     }
 };
 
-// int draw_line(SDL_Renderer *r, Line l, Color &c)
-// {
-//     // //Render red filled quad
-//     SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
-//     Vector2<double> lend = _physics_to_display_coordinates(l.GetEnd());
-//     Vector2<double> lbegin = _physics_to_display_coordinates(l.start);
-//     SDL_RenderDrawLine(r, (int) lbegin.x, (int) lbegin.y, (int) lend.x, (int) lend.y);
-// }
-
 int compute_step(Line &l1, Line &l2, double deltatime)
 {
     double t1 = l1.angle - 3.*M_PI/2;
     double t2 = 3.*M_PI/2 - l2.angle;
-    // double t1 = l1.angle - M_PI / 2;
-    // double t2 = -l2.angle - M_PI / 2;
     double g = GRAVITY;
     double a1 = -g * (2 * l1.mass + l2.mass) * std::sin(t1);
     double b1 = l2.mass * g * std::sin(t1 - 2 * t2);
@@ -181,26 +183,24 @@ class double_pendulum
 
     void step(double step_size)
     {
-        _runge_kutta(t, state, step_size, _state_d);
+        _runge_kutta(t, state, step_size, state);
+        _l1.angle = state[0];
+        _l1.angular_speed = state[1];
+        _l2.angle = state[2];
+        _l2.angular_speed = state[3];
+        _l1.angle = std::fmod(_l1.angle - M_PI/2, 2*M_PI);
+        _l2.start = _l1.GetEnd();
+        _l2.angle = std::fmod(_l2.angle - M_PI/2, 2*M_PI);
         t += step_size;
-        for (int i = 0; i < 4 ; ++ i)
-        {
-            state[i] += _state_d[i];
-        }
     }
 
     Line get_line1()
     {
-        _l1.angle = state[0];
-        _l1.angular_speed = state[1];
         return _l1;
     }
 
     Line get_line2()
     {
-        _l2.start = _l1.GetEnd();
-        _l2.angle = state[0];
-        _l2.angular_speed = state[1];
         return _l2;
     }
 
@@ -208,7 +208,7 @@ class double_pendulum
     std::array<double, 4> state; // [theta1, omega1, theta2, omega2]
     Line _l1;
     Line _l2;
-    std::array<double, 4> _state_d;
+    std::array<double, 4> _next_state;
     void _runge_kutta(
         double t,
         std::array<double, 4> const &x,
@@ -256,8 +256,6 @@ void double_pendulum::_step(
     std::array<double, 4> &x_d)
 {
     double t1, w1, t2, w2;
-    // t1 = 3.*M_PI/2 - x[2];
-    // t2 = x[0] - 3.*M_PI/2;
     t1 = x[0];
     w1 = x[1];
     t2 = x[2];
@@ -290,7 +288,7 @@ bool init()
         return false;
     }
 
-    //Create window
+    // create window
     gWindow = SDL_CreateWindow( "Double Pendulum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
     if( gWindow == NULL )
     {
@@ -305,43 +303,25 @@ bool init()
         return false;
     }
 
-    //Initialize renderer color white
+    // initialize renderer color white
     SDL_SetRenderDrawColor( gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
-    // //Get window surface
-    // gScreenSurface = SDL_GetWindowSurface( gWindow );
-    
     return true;
-}
-
-bool load_media()
-{
-
-    // // Load splash image
-    // gHelloWorld = SDL_LoadBMP( "02_getting_an_image_on_the_screen/hello_world.bmp" );
-    // if( gHelloWorld == NULL )
-    // {
-    //     printf( "Unable to load image %s! SDL Error: %s\n", "02_getting_an_image_on_the_screen/hello_world.bmp", SDL_GetError() );
-    //     success = false;
-    // }
-
-    return true;;
 }
 
 void close()
 {
-    //Destroy window
+    // destroy window
     SDL_DestroyWindow( gWindow );
     gWindow = NULL;
 
-    //Quit SDL subsystems
+    // quit SDL subsystems
     SDL_Quit();
 }
 
 Vector2<double> _physics_to_display_coordinates(Vector2<double> const &physics)
 {
-    // return Vector2<double> (physics.y, physics.x);
-    return Vector2<double> ((100 * physics.x) + SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - (100 * (physics.y)));
+    return Vector2<double> ((XSCALE * physics.x) + XOFFSET, YOFFSET - (YSCALE * (physics.y)));
 }
 
 int draw_dp(SDL_Renderer *r, double_pendulum &dp, Color &c1, Color &c2)
@@ -349,122 +329,97 @@ int draw_dp(SDL_Renderer *r, double_pendulum &dp, Color &c1, Color &c2)
     // adjust angles
     Line l1 = dp.get_line1();
     Line l2 = dp.get_line2();
-    l1.angle = std::fmod(l1.angle - 3*M_PI/2, 2*M_PI);
-    l2.start = l1.GetEnd();
-    l2.angle = std::fmod(3*M_PI/2 - l2.angle, 2*M_PI);
-    // draw pendulum lines
-    Vector2<double> lend = _physics_to_display_coordinates(l1.GetEnd());
-    Vector2<double> lbegin = _physics_to_display_coordinates(l1.start);
+    // draw upper pendulum
+    Vector2<double> s1 = _physics_to_display_coordinates(l1.start);
+    Vector2<double> e1 = _physics_to_display_coordinates(l1.GetEnd());
     SDL_SetRenderDrawColor(r, c1.r, c1.g, c1.b, c1.a);
-    SDL_RenderDrawLine(r, (int) lbegin.x, (int) lbegin.y, (int) lend.x, (int) lend.y);
-    lend = _physics_to_display_coordinates(l2.GetEnd());
-    lbegin = _physics_to_display_coordinates(l2.start);
+    SDL_RenderDrawLine(r, (int) s1.x, (int) s1.y, (int) e1.x, (int) e1.y);
+    // draw lower pendulum
+    Vector2<double> s2 = _physics_to_display_coordinates(l2.start);
+    Vector2<double> e2 = _physics_to_display_coordinates(l2.GetEnd());
     SDL_SetRenderDrawColor(r, c2.r, c2.g, c2.b, c2.a);
-    SDL_RenderDrawLine(r, (int) lbegin.x, (int) lbegin.y, (int) lend.x, (int) lend.y);
+    SDL_RenderDrawLine(r, (int) s2.x, (int) s2.y, (int) e2.x, (int) e2.y);
 }
 
 int main()
 {
     if (!init())
-    {
         return 1;
-    }
-    else
+    // main loop flag
+    bool quit = false;
+
+    // event handler
+    SDL_Event e;
+
+    // physics objects
+    Line l1(Vector2<double>(0, 0), THETA1, L1, M1);
+    Color l1c(77, 96, 128);
+    Line l2(l1.GetEnd(), THETA1, L2, M2);
+    Color l2c(251, 149, 60);
+
+    double_pendulum dp(l1, l2);
+
+    // deltatime tracking
+    auto last_time = std::chrono::high_resolution_clock::now();
+    auto this_time = std::chrono::high_resolution_clock::now();
+    float deltatime = 0;
+
+    // frame count
+    unsigned long frame_n = 0;
+
+    // while application is running
+    while(1)
     {
-        if (!load_media())
+        // handle events on queue
+        while( SDL_PollEvent( &e ) != 0 )
         {
-            return 1;
-        }
-        else
-        {
-            //Main loop flag
-            bool quit = false;
-
-            //Event handler
-            SDL_Event e;
-
-            // physics objects
-            Line l1(Vector2<double>(0, 0), 0 + 0.01, 1, 10);
-            Color l1c(77, 96, 128);
-            Line l2(l1.GetEnd(), 0, 1, 10);
-            Color l2c(251, 149, 60);
-
-            double_pendulum dp(l1, l2);
-
-            // deltatime tracking
-            auto last_time = std::chrono::high_resolution_clock::now();
-            auto this_time = std::chrono::high_resolution_clock::now();
-            // clock_t last_time = clock();
-            // clock_t this_time;
-            float deltatime = 0;
-
-            // frame count
-            unsigned long frame_n = 0;
-
-            //While application is running
-            while(1)
+            //user requests quit
+            if( e.type == SDL_QUIT )
             {
-                //Handle events on queue
-                while( SDL_PollEvent( &e ) != 0 )
-                {
-                    //User requests quit
-                    if( e.type == SDL_QUIT )
-                    {
-                        quit = true;
-                    }
-                }
-                if (quit || frame_n > 10)
-                {
-                    break;
-                }
-                // get deltatime
-                this_time = std::chrono::high_resolution_clock::now();
-                deltatime = ((double) std::chrono::duration_cast<std::chrono::milliseconds>(this_time - last_time).count()) / 1000.;
-                last_time = std::chrono::high_resolution_clock::now();
-
-                #ifdef DEBUG
-                std::cout << "frame: " << frame_n;
-                std::cout << ", Total Energy: " <<
-                l1.mass * std::pow(l1.mass, 2) / 2 * std::pow(l1.angular_speed, 2)
-                + l2.mass * std::pow(l2.mass, 2) / 2 * std::pow(l2.angular_speed, 2)
-                + l2.mass * std::pow(l2.mass, 2)
-                + l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle))
-                + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle))
-                << " Joules";
-                std::cout << ", deltatime: " << deltatime;
-                std::cout << std::endl;
-                #endif
-
-                // deltatime = ((float) (clock() - last_time)) / CLOCKS_PER_SEC;
-                // last_time = clock();
-                // std::cout << deltatime << std::endl;
-
-                //Clear screen
-                SDL_SetRenderDrawColor( gRenderer, 33, 37, 41, 0xFF);
-                SDL_RenderClear( gRenderer );
-
-                // physics
-                // compute_step(l1, l2, deltatime);
-                dp.step(deltatime);
-                l1 = dp.get_line1();
-                l2 = dp.get_line2();
-
-                // render
-                
-                // draw_line(gRenderer, l1, l1c);
-                // draw_line(gRenderer, l2, l2c);
-                // draw_line(gRenderer, dp.get_line1(), l1c);
-                // draw_line(gRenderer, dp.get_line2(), l2c);
-                draw_dp(gRenderer, dp, l1c, l2c);
-
-                //Update screen
-                SDL_RenderPresent( gRenderer );
-
-                // framerate control
-                std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000./FRAME_RATE)));
-                frame_n ++;
+                quit = true;
             }
         }
+
+        if (quit)
+            break;
+
+        // get deltatime
+        this_time = std::chrono::high_resolution_clock::now();
+        deltatime = ((double) std::chrono::duration_cast<std::chrono::milliseconds>(this_time - last_time).count()) / 1000.;
+        last_time = std::chrono::high_resolution_clock::now();
+
+        #ifdef DEBUG
+        std::cout << "frame: " << frame_n;
+        std::cout << ", Total Energy: " <<
+            0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed // kinetic energy of mass 1 = 1/2*m*r^2*w^2
+        + 0.5 * l2.mass * l2.length * l2.length * l2.angular_speed * l2.angular_speed // kinetic energy of mass 2
+        + l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle)) // GPE of mass 1
+        + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle)) // GPE of mass 2
+        << " Joules";
+        std::cout << ", deltatime: " << deltatime;
+        std::cout << ", height 1: " << l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle));
+        std::cout << ", height 2: " << l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle));
+        std::cout << std::endl;
+        #endif
+
+        // clear screen
+        SDL_SetRenderDrawColor( gRenderer, 33, 37, 41, 0xFF);
+        SDL_RenderClear( gRenderer );
+
+        // physics
+        dp.step(deltatime);
+        l1 = dp.get_line1();
+        l2 = dp.get_line2();
+
+        // render
+        draw_dp(gRenderer, dp, l1c, l2c);
+
+        // update screen
+        SDL_RenderPresent( gRenderer );
+
+        // framerate control
+        std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000./FRAME_RATE)));
+        frame_n ++;
     }
 
     close();
