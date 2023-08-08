@@ -28,12 +28,26 @@
 // Simulation Constants
 #define FRAME_RATE 20
 #define GRAVITY 9.81
+#define DP_N 10
+
+// first pendulum initial conditions
 #define M1 10
 #define M2 10
 #define L1 1
 #define L2 1
-#define THETA1 3*M_PI/2 + M_PI/4
-#define THETA2 3*M_PI/2 + M_PI/4
+#define THETA1 3*M_PI/2 + M_PI/2
+#define THETA2 3*M_PI/2 + M_PI/2
+
+// pendulum initial condition changes
+#define DM1 0
+#define DM2 0
+#define DL1 0
+#define DL2 0
+#define DTHETA1 0.05
+#define DTHETA2 0.05
+#define DCR 20
+#define DCG 20
+#define DCB 20
 
 // GUI Constants
 const int SCREEN_WIDTH = 2160;
@@ -61,18 +75,18 @@ class color
 
     color(unsigned r, unsigned g, unsigned b, unsigned a)
     {
-        this->r = r;
-        this->g = g;
-        this->b = b;
-        this->a = a;
+        this->r = r % 256;
+        this->g = g % 256;
+        this->b = b % 256;
+        this->a = a % 256;
     }
 
     color(unsigned r, unsigned g, unsigned b)
     {
-        this->r = r;
-        this->g = g;
-        this->b = b;
-        this->a = 0xFF;
+        this->r = r % 256;
+        this->g = g % 256;
+        this->b = b % 256;
+        this->a = 256;
     }
 };
 
@@ -517,18 +531,25 @@ class sdl_simulation
     }
 };
 
-#define SIM_N 1
-
 int main()
 {
     std::vector<object> objs{};
     Line l1 = Line(vector2<double> (0, 0), THETA1, L1, M1, 0);
     Line l2 = Line(l1.GetEnd(), THETA2, L2, M2, 0);
     color c1(77, 96, 128);
-    color c2(251, 149, 60);
-    for (int i = 0; i < SIM_N; ++ i)
+    // color c2(251, 149, 60);
+    for (int i = 0; i < DP_N; ++ i)
     {
-        objs.push_back(object (double_pendulum(l1, l2), c1, c2));
+        l1.mass += DM1;
+        l1.length += DL1;
+        l1.angle += DTHETA1;
+        l2.mass += DM2;
+        l2.length += DL2;
+        l2.angle += DTHETA2;
+        c1.r += DCR;
+        c1.g += DCG;
+        c1.b += DCB;
+        objs.push_back(object (double_pendulum(l1, l2), c1, c1));
     }
     sdl_simulation sim(objs);
     sim.run();
