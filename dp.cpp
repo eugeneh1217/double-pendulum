@@ -16,10 +16,14 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
-#include <ctime>
 #include <thread>
 #include <functional>
 #include <array>
+#include <vector>
+#include <string>
+
+#define OK 0
+#define ERR 1
 
 // Simulation Constants
 #define FRAME_RATE 20
@@ -28,24 +32,18 @@
 #define M2 10
 #define L1 1
 #define L2 1
-#define THETA1 M_PI/2 
-#define THETA2 M_PI/2
+#define THETA1 3*M_PI/2 + M_PI/4
+#define THETA2 3*M_PI/2 + M_PI/4
 
 // GUI Constants
 const int SCREEN_WIDTH = 2160;
 const int SCREEN_HEIGHT = 1440;
-#define XSCALE 500
-#define YSCALE 500
+#define XSCALE 300
+#define YSCALE 300
 #define XOFFSET SCREEN_WIDTH / 2
 #define YOFFSET SCREEN_HEIGHT * 1 / 5
 
-// window
-SDL_Window* gWindow = NULL;
-
-// renderer
-SDL_Renderer* gRenderer = NULL;
-
-class Color
+class color
 {
     public:
     unsigned r;
@@ -53,7 +51,15 @@ class Color
     unsigned b;
     unsigned a;
 
-    Color(unsigned r, unsigned g, unsigned b, unsigned a)
+    color()
+    {
+        r = 0;
+        g = 0;
+        b = 0;
+        a = 0;
+    }
+
+    color(unsigned r, unsigned g, unsigned b, unsigned a)
     {
         this->r = r;
         this->g = g;
@@ -61,7 +67,7 @@ class Color
         this->a = a;
     }
 
-    Color(unsigned r, unsigned g, unsigned b)
+    color(unsigned r, unsigned g, unsigned b)
     {
         this->r = r;
         this->g = g;
@@ -71,19 +77,19 @@ class Color
 };
 
 template<class T>
-class Vector2
+class vector2
 {
     public:
     T x;
     T y;
 
-    Vector2(T x, T y)
+    vector2(T x, T y)
     {
         this->x = x;
         this->y = y;
     }
 
-    Vector2()
+    vector2()
     {
         x = 0;
         y = 0;
@@ -93,13 +99,13 @@ class Vector2
 class Line
 {
     public:
-    Vector2<double> start;
+    vector2<double> start;
     double angle;
     double length;
     double mass;
     double angular_speed;
 
-    Line(Vector2<double> start, double angle, double length, double mass, double angular_speed)
+    Line(vector2<double> start, double angle, double length, double mass, double angular_speed)
     {
         this->start = start;
         this->angle = angle;
@@ -108,7 +114,7 @@ class Line
         this->angular_speed = angular_speed;
     }
 
-    Line(Vector2<double> start, double angle, double length, double mass)
+    Line(vector2<double> start, double angle, double length, double mass)
     {
         this->start = start;
         this->angle = angle;
@@ -119,7 +125,7 @@ class Line
 
     Line()
     {
-        this->start = Vector2<double>();
+        this->start = vector2<double>();
         angle = 0;
         length = 0;
         mass = 0;
@@ -131,56 +137,37 @@ class Line
         this->angle = std::fmod((this->angle + angle_delta), (double) 2 * M_PI);
     }
 
-    Vector2<double> GetEnd()
+    vector2<double> GetEnd()
     {
-        return Vector2<double>(
+        return vector2<double>(
             start.x + length * std::cos(angle),
             start.y + length * std::sin(angle)
         );
     }
 };
 
-int compute_step(Line &l1, Line &l2, double deltatime)
-{
-    double t1 = l1.angle - 3.*M_PI/2;
-    double t2 = 3.*M_PI/2 - l2.angle;
-    double g = GRAVITY;
-    double a1 = -g * (2 * l1.mass + l2.mass) * std::sin(t1);
-    double b1 = l2.mass * g * std::sin(t1 - 2 * t2);
-    double c1 = std::pow(l2.angular_speed, 2) * l2.length;
-    double d1 = std::pow(l1.angular_speed, 2) * l1.length * std::cos(t1 - t2);
-    double e1 = 2 * sin(t1 - t2) * l2.mass * (c1 + d1);
-    double f = 2 * l1.mass + l2.mass - l2.mass * std::cos(2 * t1 - 2 * t2);
-    double aa1 = (a1 - b1 - e1) / (l1.length * f);
-
-    double a2 = 2 * std::sin(t1 - t2);
-    double b2 = std::pow(l1.angular_speed, 2) * l1.length * (l1.mass + l2.mass);
-    double c2 = g * (l1.mass + l2.mass) * std::cos(t1);
-    double d2 = std::pow(l2.angular_speed, 2) * l2.length * l2.mass * std::cos(t1 - t2);
-    double aa2 = a2 * (b2 + c2 + d2) / (l2.length * f);
-
-    l1.angle += l1.angular_speed * deltatime;
-    l2.angle += l2.angular_speed * deltatime;
-    l1.angular_speed += aa1 * deltatime;
-    l2.angular_speed += -aa2 * deltatime;
-
-    l2.start = l1.GetEnd();
-
-    return 0;
-}
-
 class double_pendulum
 {
     public:
     double t;
 
-    double_pendulum(Line l1, Line l2)
+    double_pendulum()
+    {
+        _l1 = Line();
+        _l2 = Line();
+        state[0] = 0;
+        state[1] = 0;
+        state[2] = 0;
+        state[3] = 0;
+    }
+
+    double_pendulum(Line l1, Line l2) // l1 and l2 in terms of UI angles
     {
         _l1 = l1;
         _l2 = l2;
-        state[0] = l1.angle;
+        state[0] = l1.angle + M_PI/2; // convert to physics angles
         state[1] = l1.angular_speed;
-        state[2] = l2.angle;
+        state[2] = l2.angle + M_PI/2; // convert to physics angles
         state[3] = l2.angular_speed;
     }
 
@@ -191,9 +178,9 @@ class double_pendulum
         _l1.angular_speed = state[1];
         _l2.angle = state[2];
         _l2.angular_speed = state[3];
-        _l1.angle = std::fmod(_l1.angle - M_PI/2, 2*M_PI);
+        _l1.angle = std::fmod(_l1.angle - M_PI/2, 2*M_PI); // convert back to UI angles
         _l2.start = _l1.GetEnd();
-        _l2.angle = std::fmod(_l2.angle - M_PI/2, 2*M_PI);
+        _l2.angle = std::fmod(_l2.angle - M_PI/2, 2*M_PI); // convert back to UI angles
         t += step_size;
     }
 
@@ -207,11 +194,26 @@ class double_pendulum
         return _l2;
     }
 
-    private:
+    double get_ke()
+    {
+        return 0.5 * _l1.mass * _l1.length * _l1.length * _l1.angular_speed * _l1.angular_speed
+            + 0.5 * _l2.mass * (
+                _l1.length * _l1.length * _l1.angular_speed * _l1.angular_speed
+                + _l2.length * _l2.length * _l2.angular_speed * _l2.angular_speed
+                + 2 * _l1.length * _l2.length * _l1.angular_speed * _l2.angular_speed * std::cos(_l1.angle - _l2.angle)
+            );
+    }
+
+    double get_ge()
+    {
+        return _l1.mass * GRAVITY * (_l1.length + _l2.length + std::sin(_l1.angle))
+            + _l2.mass * GRAVITY * (_l1.length + _l2.length + std::sin(_l1.angle) + std::sin(_l2.angle));
+    }
+
     std::array<double, 4> state; // [theta1, omega1, theta2, omega2]
+    private:
     Line _l1;
     Line _l2;
-    std::array<double, 4> _next_state;
     void _runge_kutta(
         double t,
         std::array<double, 4> const &x,
@@ -283,157 +285,253 @@ void double_pendulum::_step(
     x_d[3] = a2 * (b2 + c2 + d2) / (_l2.length * f);
 }
 
-bool init()
+vector2<double> _physics_to_display_coordinates(vector2<double> const &physics)
 {
-    if (SDL_Init( SDL_INIT_VIDEO ) < 0)
-    {
-        std::cout << "SDL could not initialize: " << SDL_GetError() << std::endl;
-        return false;
-    }
-
-    // create window
-    gWindow = SDL_CreateWindow( "Double Pendulum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
-    if( gWindow == NULL )
-    {
-        std::cout << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        return false;
-    }
-
-    gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED );
-    if( gRenderer == NULL )
-    {
-        std::cout << "Renderer could not be created: " << SDL_GetError() << std::endl;
-        return false;
-    }
-
-    // initialize renderer color white
-    SDL_SetRenderDrawColor( gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-    return true;
+    return vector2<double> ((XSCALE * physics.x) + XOFFSET, YOFFSET - (YSCALE * (physics.y)));
 }
 
-void close()
-{
-    // destroy window
-    SDL_DestroyWindow( gWindow );
-    gWindow = NULL;
-
-    // quit SDL subsystems
-    SDL_Quit();
-}
-
-Vector2<double> _physics_to_display_coordinates(Vector2<double> const &physics)
-{
-    return Vector2<double> ((XSCALE * physics.x) + XOFFSET, YOFFSET - (YSCALE * (physics.y)));
-}
-
-int draw_dp(SDL_Renderer *r, double_pendulum &dp, Color &c1, Color &c2)
+int draw_dp(SDL_Renderer *r, double_pendulum &dp, color &c1, color &c2)
 {
     // adjust angles
     Line l1 = dp.get_line1();
     Line l2 = dp.get_line2();
     // draw upper pendulum
-    Vector2<double> s1 = _physics_to_display_coordinates(l1.start);
-    Vector2<double> e1 = _physics_to_display_coordinates(l1.GetEnd());
+    vector2<double> s1 = _physics_to_display_coordinates(l1.start);
+    vector2<double> e1 = _physics_to_display_coordinates(l1.GetEnd());
     SDL_SetRenderDrawColor(r, c1.r, c1.g, c1.b, c1.a);
     SDL_RenderDrawLine(r, (int) s1.x, (int) s1.y, (int) e1.x, (int) e1.y);
     // draw lower pendulum
-    Vector2<double> s2 = _physics_to_display_coordinates(l2.start);
-    Vector2<double> e2 = _physics_to_display_coordinates(l2.GetEnd());
+    vector2<double> s2 = _physics_to_display_coordinates(l2.start);
+    vector2<double> e2 = _physics_to_display_coordinates(l2.GetEnd());
     SDL_SetRenderDrawColor(r, c2.r, c2.g, c2.b, c2.a);
     SDL_RenderDrawLine(r, (int) s2.x, (int) s2.y, (int) e2.x, (int) e2.y);
+    return 0;
 }
+
+class object
+{
+    public:
+    double_pendulum physics;
+    color c1;
+    color c2;
+
+    object(double_pendulum physics, color c1, color c2)
+    {
+        this->physics = physics;
+        this->c1 = c1;
+        this->c2 = c2;
+    }
+
+    object(double_pendulum physics, color c)
+    {
+        this->physics = physics;
+        c1 = c;
+        c2 = c;
+    }
+
+    object(double_pendulum physics)
+    {
+        this->physics = physics;
+        c1 = color(77, 96, 128);
+        c2 = c1;
+    }
+};
+
+void print_sdl_error(std::string msg)
+{
+    std::cout << msg << ": " << SDL_GetError() << std::endl;
+}
+
+class sdl_simulation
+{
+    public:
+    std::vector<object> dps;
+
+    sdl_simulation()
+    {
+        dps = {};
+        gWindow = NULL;
+        gRenderer = NULL;
+    }
+
+    sdl_simulation(std::vector<object> dps)
+    {
+        this->dps = dps;
+        gWindow = NULL;
+        gRenderer = NULL;
+    }
+
+    int run()
+    {
+        if (_init() != OK)
+            return 1;
+
+        // main loop flag
+        bool quit = false;
+
+        // event handler
+        SDL_Event e;
+
+        // deltatime tracking
+        auto last_time = std::chrono::high_resolution_clock::now();
+        auto this_time = std::chrono::high_resolution_clock::now();
+        float deltatime = 0;
+
+        // frame count
+        unsigned long frame_n = 0;
+
+        // while application is running
+        while(1)
+        {
+            // handle events on queue
+            while( SDL_PollEvent( &e ) != 0 )
+            {
+                //user requests quit
+                if( e.type == SDL_QUIT )
+                {
+                    return 0;
+                }
+            }
+
+            if (quit)
+                break;
+
+            // get deltatime
+            this_time = std::chrono::high_resolution_clock::now();
+            deltatime = ((double) std::chrono::duration_cast<std::chrono::milliseconds>(this_time - last_time).count()) / 1000.;
+            last_time = std::chrono::high_resolution_clock::now();
+
+            #ifdef DEBUG
+            std::cout << "frame: " << frame_n;
+            std::cout << ", deltatime: " << deltatime;
+            std::cout << std::endl;
+            #endif
+
+            // clear screen
+            SDL_SetRenderDrawColor( gRenderer, 33, 37, 41, 0xFF);
+            SDL_RenderClear( gRenderer );
+
+            // update objects
+            for (auto &dp : dps)
+            {
+                dp.physics.step(deltatime);
+                if (_draw_dp(gRenderer, dp) != OK)
+                {
+                    quit = true;
+                    break;
+                }
+            }
+
+            // update screen
+            SDL_RenderPresent( gRenderer );
+
+            // frame control
+            frame_n ++;
+            std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000./FRAME_RATE)));
+        }
+
+        _close();
+
+        return OK;
+    }
+
+    private:
+    SDL_Window* gWindow;
+    SDL_Renderer* gRenderer;
+
+    int _init()
+    {
+        if (SDL_Init( SDL_INIT_VIDEO ) < 0)
+        {
+            print_sdl_error("SDL could not initialize");
+            return ERR;
+        }
+
+        // create window
+        gWindow = SDL_CreateWindow( "Double Pendulum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
+        if( gWindow == NULL )
+        {
+            print_sdl_error("Window could not be created");
+            return ERR;
+        }
+
+        gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED );
+        if( gRenderer == NULL )
+        {
+            print_sdl_error("Renderer could not be created");
+            return ERR;
+        }
+
+        // initialize renderer color white
+        SDL_SetRenderDrawColor( gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+
+        return OK;
+    }
+
+    int _draw_dp(SDL_Renderer *r, object obj)
+    {
+        Line l1 = obj.physics.get_line1();
+        Line l2 = obj.physics.get_line2();
+        int ret = 0;
+        // draw upper pendulum
+        vector2<double> s1 = _physics_to_display_coordinates(l1.start);
+        vector2<double> e1 = _physics_to_display_coordinates(l1.GetEnd());
+        ret = SDL_SetRenderDrawColor(r, obj.c1.r, obj.c1.g, obj.c1.b, obj.c1.a);
+        if (ret != OK)
+        {
+            print_sdl_error("Could not switch color");
+            return ERR;
+        }
+        ret = SDL_RenderDrawLine(r, (int) s1.x, (int) s1.y, (int) e1.x, (int) e1.y);
+        if (ret != OK)
+        {
+            print_sdl_error("Could not draw line");
+            return ERR;
+        }
+        // draw lower pendulum
+        vector2<double> s2 = _physics_to_display_coordinates(l2.start);
+        vector2<double> e2 = _physics_to_display_coordinates(l2.GetEnd());
+        ret = SDL_SetRenderDrawColor(r, obj.c2.r, obj.c2.g, obj.c2.b, obj.c2.a);
+        if (ret != OK)
+        {
+            print_sdl_error("Could not switch color");
+            return ERR;
+        }
+        ret = SDL_RenderDrawLine(r, (int) s2.x, (int) s2.y, (int) e2.x, (int) e2.y);
+        if (ret != OK)
+        {
+            print_sdl_error("Could not draw line");
+            return ERR;
+        }
+        return OK;
+    }
+
+    void _close()
+    {
+        // destroy window
+        SDL_DestroyWindow( gWindow );
+        gWindow = NULL;
+
+        // quit SDL subsystems
+        SDL_Quit();
+    }
+};
+
+#define SIM_N 1
 
 int main()
 {
-    if (!init())
-        return 1;
-    // main loop flag
-    bool quit = false;
-
-    // event handler
-    SDL_Event e;
-
-    // physics objects
-    Line l1(Vector2<double>(0, 0), THETA1, L1, M1);
-    Color l1c(77, 96, 128);
-    Line l2(l1.GetEnd(), THETA1, L2, M2);
-    Color l2c(251, 149, 60);
-
-    double_pendulum dp(l1, l2);
-
-    // deltatime tracking
-    auto last_time = std::chrono::high_resolution_clock::now();
-    auto this_time = std::chrono::high_resolution_clock::now();
-    float deltatime = 0;
-
-    // frame count
-    unsigned long frame_n = 0;
-
-    // energy tracking
-    double ke = 0;
-    double ge = 0;
-
-    // while application is running
-    while(1)
+    std::vector<object> objs{};
+    Line l1 = Line(vector2<double> (0, 0), THETA1, L1, M1, 0);
+    Line l2 = Line(l1.GetEnd(), THETA2, L2, M2, 0);
+    color c1(77, 96, 128);
+    color c2(251, 149, 60);
+    for (int i = 0; i < SIM_N; ++ i)
     {
-        // handle events on queue
-        while( SDL_PollEvent( &e ) != 0 )
-        {
-            //user requests quit
-            if( e.type == SDL_QUIT )
-            {
-                quit = true;
-            }
-        }
-
-        if (quit)
-            break;
-
-        // get deltatime
-        this_time = std::chrono::high_resolution_clock::now();
-        deltatime = ((double) std::chrono::duration_cast<std::chrono::milliseconds>(this_time - last_time).count()) / 1000.;
-        last_time = std::chrono::high_resolution_clock::now();
-
-        ke = 0.5 * l1.mass * l1.length * l1.length * l1.angular_speed * l1.angular_speed
-            + 0.5 * l2.mass * (
-                l1.length * l1.length * l1.angular_speed * l1.angular_speed
-                + l2.length * l2.length * l2.angular_speed * l2.angular_speed
-                + 2 * l1.length * l2.length * l1.angular_speed * l2.angular_speed * std::cos(l1.angle - l2.angle)
-            );
-        ge = l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle))
-            + l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle));
-
-        #ifdef DEBUG
-        std::cout << "frame: " << frame_n;
-        std::cout << ", Total Energy: " << ke + ge << " Joules";
-        std::cout << ", deltatime: " << deltatime;
-        std::cout << ", height 1: " << l1.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle));
-        std::cout << ", height 2: " << l2.mass * GRAVITY * (l1.length + l2.length + std::sin(l1.angle) + std::sin(l2.angle));
-        std::cout << std::endl;
-        #endif
-
-        // clear screen
-        SDL_SetRenderDrawColor( gRenderer, 33, 37, 41, 0xFF);
-        SDL_RenderClear( gRenderer );
-
-        // physics
-        dp.step(deltatime);
-        l1 = dp.get_line1();
-        l2 = dp.get_line2();
-
-        // render
-        draw_dp(gRenderer, dp, l1c, l2c);
-
-        // update screen
-        SDL_RenderPresent( gRenderer );
-
-        // framerate control
-        std::this_thread::sleep_for(std::chrono::milliseconds((int) (1000./FRAME_RATE)));
-        frame_n ++;
+        objs.push_back(object (double_pendulum(l1, l2), c1, c2));
     }
-
-    close();
+    sdl_simulation sim(objs);
+    sim.run();
 
     return 0;
 }
