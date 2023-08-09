@@ -28,11 +28,11 @@
 // Simulation Constants
 #define FRAME_RATE 20
 #define GRAVITY 9.81
-#define DP_N 10
+#define DP_N 5000
 
 // first pendulum initial conditions
-#define M1 10
-#define M2 10
+#define M1 1000
+#define M2 1000
 #define L1 1
 #define L2 1
 #define THETA1 3*M_PI/2 + M_PI/2
@@ -43,11 +43,11 @@
 #define DM2 0
 #define DL1 0
 #define DL2 0
-#define DTHETA1 0.05
-#define DTHETA2 0.05
-#define DCR 20
-#define DCG 20
-#define DCB 20
+#define DTHETA1 0.01
+#define DTHETA2 0.01
+#define DCR 3
+#define DCG 1
+#define DCB 2
 
 // GUI Constants
 const int SCREEN_WIDTH = 2160;
@@ -417,7 +417,7 @@ class sdl_simulation
 
             #ifdef DEBUG
             std::cout << "frame: " << frame_n;
-            std::cout << ", deltatime: " << deltatime;
+            std::cout << ", framerate: " << 1./deltatime;
             std::cout << std::endl;
             #endif
 
