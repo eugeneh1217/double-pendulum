@@ -1,4 +1,10 @@
 /**
+ * SDL2 Setup
+ * - https://wiki.libsdl.org/SDL2/Installation
+ * 
+ * SDL2 Usage
+ * - https://lazyfoo.net/tutorials/SDL/index.php
+ * 
  * double pendulum math
  * - https://web.mit.edu/jorloff/www/chaosTalk/double-pendulum/double-pendulum-en.html
  * 
