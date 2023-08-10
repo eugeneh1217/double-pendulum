@@ -1,4 +1,4 @@
-CPPFLAGS=-w -lSDL2 -o dp
+CPPFLAGS=-std=c++20 -Wall -Wextra -lSDL2 -lSDL2_ttf -o dp
 GPP = g++
 
 dp: dp.cpp

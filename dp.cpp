@@ -1,24 +1,8 @@
-/**
- * SDL2 Setup
- * - https://wiki.libsdl.org/SDL2/Installation
- * 
- * SDL2 Usage
- * - https://lazyfoo.net/tutorials/SDL/index.php
- * 
- * double pendulum math
- * - https://web.mit.edu/jorloff/www/chaosTalk/double-pendulum/double-pendulum-en.html
- * 
- * double pendulum energy
- * - https://scienceworld.wolfram.com/physics/DoublePendulum.html
- * 
- * runge-kutta
- * - https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
-*/
-
 #define _USE_MATH_DEFINES
 #define DEBUG
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <cmath>
 #include <chrono>
@@ -34,11 +18,11 @@
 // Simulation Constants
 #define FRAME_RATE 20
 #define GRAVITY 9.81
-#define DP_N 5000
+#define DP_N 1
 
 // first pendulum initial conditions
-#define M1 1000
-#define M2 1000
+#define M1 0.01
+#define M2 0.01
 #define L1 1
 #define L2 1
 #define THETA1 3*M_PI/2 + M_PI/2
@@ -57,11 +41,15 @@
 
 // GUI Constants
 const int SCREEN_WIDTH = 2160;
-const int SCREEN_HEIGHT = 1440;
-#define XSCALE 300
-#define YSCALE 300
+const int SCREEN_HEIGHT = 2160;
+#define XSCALE 400
+#define YSCALE 400
 #define XOFFSET SCREEN_WIDTH / 2
-#define YOFFSET SCREEN_HEIGHT * 1 / 5
+#define YOFFSET SCREEN_HEIGHT * 2 / 5
+#define FONT_PATH "media/Ubuntu-Th.ttf"
+#define FONT_SIZE 80
+#define ENERGY_DIGITS 7
+// #define DISPLAY_ENERGY
 
 class color
 {
@@ -276,7 +264,7 @@ void double_pendulum::_runge_kutta(
 }
 
 void double_pendulum::_step(
-    double t,
+    __attribute__((unused)) double t,
     std::array<double, 4> const &x,
     std::array<double, 4> &x_d)
 {
@@ -362,6 +350,15 @@ void print_sdl_error(std::string msg)
     std::cout << msg << ": " << SDL_GetError() << std::endl;
 }
 
+std::string double_to_string(double d, unsigned digits)
+{
+    // double r = std::round(d * std::pow(10, precision)) / std::pow(10, precision);
+    // std::string s = std::to_string(r);
+    // std::string clipped = s.substr(0, s.find(".") + precision + 1);
+    // return clipped;
+    return std::to_string(d).substr(0, digits + 1);
+}
+
 class sdl_simulation
 {
     public:
@@ -400,6 +397,18 @@ class sdl_simulation
         // frame count
         unsigned long frame_n = 0;
 
+        #ifdef DISPLAY_ENERGY
+        // text rendering
+        SDL_Surface *text_surface;
+        SDL_Texture *text_texture;
+        std::string energy_str = "";
+        SDL_Color tc = {255, 255, 255, 0};
+
+        // energy
+        double ge = 0;
+        double ke = 0;
+        #endif
+
         // while application is running
         while(1)
         {
@@ -415,6 +424,12 @@ class sdl_simulation
 
             if (quit)
                 break;
+            
+            // if (frame_n == 0)
+            // {
+            //     std::this_thread::sleep_for(std::chrono::seconds(15));
+            //     last_time = std::chrono::high_resolution_clock::now();
+            // }
 
             // get deltatime
             this_time = std::chrono::high_resolution_clock::now();
@@ -432,6 +447,10 @@ class sdl_simulation
             SDL_RenderClear( gRenderer );
 
             // update objects
+            #ifdef DISPLAY_ENERGY
+            ge = 0;
+            ke = 0;
+            #endif
             for (auto &dp : dps)
             {
                 dp.physics.step(deltatime);
@@ -440,10 +459,33 @@ class sdl_simulation
                     quit = true;
                     break;
                 }
+                #ifdef DISPLAY_ENERGY
+                ge += dp.physics.get_ge();
+                ke += dp.physics.get_ke();
+                #endif
             }
+
+            #ifdef DISPLAY_ENERGY
+            energy_str =
+                "GPE: " + double_to_string(ge, ENERGY_DIGITS) + "J\n"
+                + "KE: " + double_to_string(ke, ENERGY_DIGITS) + "J\n"
+                + "Total Energy: " + double_to_string(ge + ke, ENERGY_DIGITS) + "J";
+            text_surface = TTF_RenderText_Solid_Wrapped(font, energy_str.c_str(), tc, 2048);
+            text_texture = SDL_CreateTextureFromSurface(gRenderer, text_surface);
+            int tw = 0;
+            int th = 0;
+            SDL_QueryTexture(text_texture, NULL, NULL, &tw, &th);
+            SDL_Rect text_rect = {0, 0, tw, th};
+            SDL_RenderCopy(gRenderer, text_texture, NULL, &text_rect);
+            #endif
 
             // update screen
             SDL_RenderPresent( gRenderer );
+
+            #ifdef DISPLAY_ENERGY
+            SDL_FreeSurface(text_surface);
+            SDL_DestroyTexture(text_texture);
+            #endif
 
             // frame control
             frame_n ++;
@@ -458,6 +500,7 @@ class sdl_simulation
     private:
     SDL_Window* gWindow;
     SDL_Renderer* gRenderer;
+    TTF_Font *font;
 
     int _init()
     {
@@ -466,6 +509,15 @@ class sdl_simulation
             print_sdl_error("SDL could not initialize");
             return ERR;
         }
+
+        if (TTF_Init() < 0)
+        {
+            print_sdl_error("SDL tff could not initialize");
+            return ERR;
+        }
+
+        // load font
+        font = TTF_OpenFont(FONT_PATH, FONT_SIZE);
 
         // create window
         gWindow = SDL_CreateWindow( "Double Pendulum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
@@ -528,9 +580,16 @@ class sdl_simulation
 
     void _close()
     {
+        // destroy renderer
+        SDL_DestroyRenderer(gRenderer);
+        gRenderer = NULL;
         // destroy window
         SDL_DestroyWindow( gWindow );
         gWindow = NULL;
+
+        // quit sdl_ttf
+        TTF_CloseFont(font);
+        TTF_Quit();
 
         // quit SDL subsystems
         SDL_Quit();
