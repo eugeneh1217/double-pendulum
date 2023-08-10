@@ -1,4 +1,4 @@
-![Double Pendulum GIF](https://github.com/eugeneh1217/double-pendulum/blob/master/double_pendulum.gif)
+![Double Pendulum GIF](https://github.com/eugeneh1217/double-pendulum/blob/master/double_pendulum.mp4)
 
 # Double Pendulum
 Double Pendulum Simulation using Runge Kutta 4 with SDL2
